@@ -35,6 +35,8 @@ public:
 	virtual bool HasPakLoaded() const override;
 	virtual void SetExtractThreadCount(int32 InThreadCount) override;
 	virtual bool LoadAssetRegistry(const FString& InRegristryPath) override;
+	virtual FPakTreeEntryPtr GetReferencers(const FString& InFilePath);
+	virtual FPakTreeEntryPtr GetDependencies(const FString& InFilePath);
 
 protected:
 	void Reset();
@@ -48,6 +50,7 @@ protected:
 	void RefreshClassMap(FPakTreeEntryPtr InRoot);
 	void InsertClassInfo(FPakTreeEntryPtr InRoot, FName InClassName, int32 InFileCount, int64 InSize, int64 InCompressedSize);
 	FName GetAssetClass(const FString& InFilename);
+	FString ConvertFilePathToLongPackagePath(const FString& InFilename);
 
 	bool LoadAssetRegistryFromPak(TSharedPtr<FPakFile> InPakFile, FPakFileEntryPtr InPakFileEntry);
 	bool LoadAssetRegistry(FArrayReader& InData);

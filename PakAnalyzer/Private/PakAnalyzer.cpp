@@ -618,24 +618,32 @@ FName FPakAnalyzer::GetAssetClass(const FString& InFilename)
 	FName AssetClass = *FPaths::GetExtension(InFilename);
 	if (AssetRegistryState.IsValid())
 	{
-		const FString FullPath = PakFileSumary.MountPoint / InFilename;
-		FString Left, Right;
-		if (FullPath.Split(TEXT("Content"), &Left, &Right))
+		const FString LongPackagePath = ConvertFilePathToLongPackagePath(InFilename);
+		const TArray<const FAssetData*>& AssetDataArray = AssetRegistryState->GetAssetsByPackageName(*LongPackagePath);
+		if (AssetDataArray.Num() > 0)
 		{
-			const FString Prefix = FPaths::GetPathLeaf(Left);
-			const bool bNotUseGamePrefix = Prefix == TEXT("Engine") || FullPath.Contains(TEXT("Plugin"));
-
-			const FString FullObjectPath = FPaths::SetExtension(bNotUseGamePrefix ? TEXT("/") / Prefix / Right : TEXT("/Game") / Right, TEXT(""));
-
-			const TArray<const FAssetData*>& AssetDataArray = AssetRegistryState->GetAssetsByPackageName(*FullObjectPath);
-			if (AssetDataArray.Num() > 0)
-			{
-				AssetClass = AssetDataArray[0]->AssetClass;
-			}
+			AssetClass = AssetDataArray[0]->AssetClass;
 		}
 	}
 
 	return AssetClass.IsNone() ? TEXT("Unknown") : AssetClass;
+}
+
+FString FPakAnalyzer::ConvertFilePathToLongPackagePath(const FString& InFilename)
+{
+	const FString FullPath = PakFileSumary.MountPoint / InFilename;
+	FString Left, Right;
+	if (FullPath.Split(TEXT("Content"), &Left, &Right))
+	{
+		const FString Prefix = FPaths::GetPathLeaf(Left);
+		const bool bNotUseGamePrefix = Prefix == TEXT("Engine") || FullPath.Contains(TEXT("Plugin"));
+
+		const FString LongPackagePath = FPaths::SetExtension(bNotUseGamePrefix ? TEXT("/") / Prefix / Right : TEXT("/Game") / Right, TEXT(""));
+
+		return LongPackagePath;
+	}
+
+	return InFilename;
 }
 
 bool FPakAnalyzer::LoadAssetRegistryFromPak(TSharedPtr<FPakFile> InPakFile, FPakFileEntryPtr InPakFileEntry)
@@ -695,13 +703,15 @@ bool FPakAnalyzer::LoadAssetRegistryFromPak(TSharedPtr<FPakFile> InPakFile, FPak
 bool FPakAnalyzer::LoadAssetRegistry(FArrayReader& InData)
 {
 	FAssetRegistrySerializationOptions LoadOptions;
-	LoadOptions.bSerializeDependencies = false;
-	LoadOptions.bSerializePackageData = false;
+	LoadOptions.ModifyForDevelopment();
+	//LoadOptions.bSerializeDependencies = true;
+	//LoadOptions.bSerializePackageData = true;
 
 	TSharedPtr<FAssetRegistryState> NewAssetRegistryState = MakeShared<FAssetRegistryState>();
 	if (NewAssetRegistryState->Serialize(InData, LoadOptions))
 	{
 		AssetRegistryState = NewAssetRegistryState;
+
 		return true;
 	}
 
@@ -730,6 +740,34 @@ bool FPakAnalyzer::LoadAssetRegistry(const FString& InRegristryPath)
 
 	RefreshClassMap(TreeRoot);
 	return true;
+}
+
+FPakTreeEntryPtr FPakAnalyzer::GetReferencers(const FString& InFilePath)
+{
+	using namespace UE::AssetRegistry;
+
+	if (AssetRegistryState.IsValid())
+	{
+		const FString LongPackagePath = ConvertFilePathToLongPackagePath(InFilePath);
+
+		FAssetIdentifier AssetIdentifier(*LongPackagePath);
+		TArray<FAssetDependency> Referencers;
+
+		if (AssetRegistryState->GetReferencers(AssetIdentifier, Referencers))
+		{
+			for (const FAssetDependency& Referencer : Referencers)
+			{
+
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+FPakTreeEntryPtr FPakAnalyzer::GetDependencies(const FString& InFilePath)
+{
+	return nullptr;
 }
 
 bool FPakAnalyzer::PreLoadPak(const FString& InPakPath)
