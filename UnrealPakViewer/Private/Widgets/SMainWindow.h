@@ -30,6 +30,7 @@ protected:
 	void OnLoadPakFile();
 	void OnLoadPakFailed(const FString& InReason);
 	FString OnGetAESKey();
+	FString OnGetKeyChainFilename();
 	void OnSwitchToTreeView(const FString& InPath);
 	void OnSwitchToFileView(const FString& InPath);
 	void OnExtractStart();

@@ -118,6 +118,7 @@ void SMainWindow::Construct(const FArguments& Args)
 	OnWindowClosed.BindRaw(this, &SMainWindow::OnExit);
 
 	FPakAnalyzerDelegates::OnGetAESKey.BindRaw(this, &SMainWindow::OnGetAESKey);
+	FPakAnalyzerDelegates::OnGetKeyChainFilename.BindRaw(this, &SMainWindow::OnGetKeyChainFilename);
 	FPakAnalyzerDelegates::OnLoadPakFailed.BindRaw(this, &SMainWindow::OnLoadPakFailed);
 }
 
@@ -304,6 +305,34 @@ FString SMainWindow::OnGetAESKey()
 	FSlateApplication::Get().AddModalWindow(KeyInputWindow.ToSharedRef(), SharedThis(this), false);
 
 	return EncryptionKey;
+}
+
+FString SMainWindow::OnGetKeyChainFilename()
+{
+	TArray<FString> OutFiles;
+	bool bOpened = false;
+
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+	if (DesktopPlatform)
+	{
+		bOpened = DesktopPlatform->OpenFileDialog
+		(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			LOCTEXT("LoadKeyChain_FileDesc", "Open keychain file...").ToString(),
+			TEXT(""),
+			TEXT(""),
+			LOCTEXT("LoadKeyChain_FileFilter", "Keychain files (*.json)|*.json|All files (*.*)|*.*").ToString(),
+			EFileDialogFlags::None,
+			OutFiles
+		);
+	}
+
+	if (bOpened && OutFiles.Num() > 0)
+	{
+		return OutFiles[0];
+	}
+
+	return FString();
 }
 
 void SMainWindow::OnSwitchToTreeView(const FString& InPath)

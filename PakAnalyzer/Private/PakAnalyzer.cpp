@@ -233,6 +233,24 @@ void FPakAnalyzer::ExtractFiles(const FString& InOutputPath, TArray<FPakFileEntr
 		return;
 	}
 
+	if (!CachedAESKey.IsValid())
+	{
+		bool bEncrypted = false;
+		for (const FPakFileEntryPtr& File : InFiles)
+		{
+			if (File->PakEntry.IsEncrypted())
+			{
+				bEncrypted = true;
+				break;
+			}
+		}
+
+		if (bEncrypted)
+		{
+			LoadKeyChain();
+		}
+	}
+
 	FPakAnalyzerDelegates::OnExtractStart.ExecuteIfBound();
 
 	if (!FPaths::DirectoryExists(InOutputPath))
@@ -920,4 +938,126 @@ void FPakAnalyzer::OnUpdateExtractProgress(const FGuid& WorkerGuid, int32 Comple
 void FPakAnalyzer::ResetProgress()
 {
 	ExtractWorkerProgresses.Empty(ExtractWorkers.Num());
+}
+
+void FPakAnalyzer::LoadKeyChainFromFile(const FString& InFilename, FKeyChain& OutCryptoSettings)
+{
+	auto ParseRSAKeyFromJson = [](TSharedPtr<FJsonObject> InObj) -> FRSAKeyHandle
+	{
+		TSharedPtr<FJsonObject> PublicKey = InObj->GetObjectField(TEXT("PublicKey"));
+		TSharedPtr<FJsonObject> PrivateKey = InObj->GetObjectField(TEXT("PrivateKey"));
+
+		FString PublicExponentBase64, PrivateExponentBase64, PublicModulusBase64, PrivateModulusBase64;
+
+		if (PublicKey->TryGetStringField("Exponent", PublicExponentBase64)
+			&& PublicKey->TryGetStringField("Modulus", PublicModulusBase64)
+			&& PrivateKey->TryGetStringField("Exponent", PrivateExponentBase64)
+			&& PrivateKey->TryGetStringField("Modulus", PrivateModulusBase64))
+		{
+			check(PublicModulusBase64 == PrivateModulusBase64);
+
+			TArray<uint8> PublicExponent, PrivateExponent, Modulus;
+			FBase64::Decode(PublicExponentBase64, PublicExponent);
+			FBase64::Decode(PrivateExponentBase64, PrivateExponent);
+			FBase64::Decode(PublicModulusBase64, Modulus);
+
+			return FRSA::CreateKey(PublicExponent, PrivateExponent, Modulus);
+		}
+		else
+		{
+			return nullptr;
+		}
+	};
+
+	FArchive* File = IFileManager::Get().CreateFileReader(*InFilename);
+	UE_CLOG(File == nullptr, LogPakFile, Fatal, TEXT("Specified crypto keys cache '%s' does not exist!"), *InFilename);
+	TSharedPtr<FJsonObject> RootObject;
+	TSharedRef<TJsonReader<char>> Reader = TJsonReaderFactory<char>::Create(File);
+	if (FJsonSerializer::Deserialize(Reader, RootObject))
+	{
+		const TSharedPtr<FJsonObject>* EncryptionKeyObject;
+		if (RootObject->TryGetObjectField(TEXT("EncryptionKey"), EncryptionKeyObject))
+		{
+			FString EncryptionKeyBase64;
+			if ((*EncryptionKeyObject)->TryGetStringField(TEXT("Key"), EncryptionKeyBase64))
+			{
+				if (EncryptionKeyBase64.Len() > 0)
+				{
+					TArray<uint8> Key;
+					FBase64::Decode(EncryptionKeyBase64, Key);
+					check(Key.Num() == sizeof(FAES::FAESKey::Key));
+					FNamedAESKey NewKey;
+					NewKey.Name = TEXT("Default");
+					NewKey.Guid = FGuid();
+					FMemory::Memcpy(NewKey.Key.Key, &Key[0], sizeof(FAES::FAESKey::Key));
+					OutCryptoSettings.EncryptionKeys.Add(NewKey.Guid, NewKey);
+				}
+			}
+		}
+
+		const TSharedPtr<FJsonObject>* SigningKey = nullptr;
+		if (RootObject->TryGetObjectField(TEXT("SigningKey"), SigningKey))
+		{
+			OutCryptoSettings.SigningKey = ParseRSAKeyFromJson(*SigningKey);
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* SecondaryEncryptionKeyArray = nullptr;
+		if (RootObject->TryGetArrayField(TEXT("SecondaryEncryptionKeys"), SecondaryEncryptionKeyArray))
+		{
+			for (TSharedPtr<FJsonValue> EncryptionKeyValue : *SecondaryEncryptionKeyArray)
+			{
+				FNamedAESKey NewKey;
+				TSharedPtr<FJsonObject> SecondaryEncryptionKeyObject = EncryptionKeyValue->AsObject();
+				FGuid::Parse(SecondaryEncryptionKeyObject->GetStringField(TEXT("Guid")), NewKey.Guid);
+				NewKey.Name = SecondaryEncryptionKeyObject->GetStringField(TEXT("Name"));
+				FString KeyBase64 = SecondaryEncryptionKeyObject->GetStringField(TEXT("Key"));
+
+				TArray<uint8> Key;
+				FBase64::Decode(KeyBase64, Key);
+				check(Key.Num() == sizeof(FAES::FAESKey::Key));
+				FMemory::Memcpy(NewKey.Key.Key, &Key[0], sizeof(FAES::FAESKey::Key));
+
+				check(!OutCryptoSettings.EncryptionKeys.Contains(NewKey.Guid) || OutCryptoSettings.EncryptionKeys[NewKey.Guid].Key == NewKey.Key);
+				OutCryptoSettings.EncryptionKeys.Add(NewKey.Guid, NewKey);
+			}
+		}
+	}
+	delete File;
+	FGuid EncryptionKeyOverrideGuid;
+	OutCryptoSettings.MasterEncryptionKey = OutCryptoSettings.EncryptionKeys.Find(EncryptionKeyOverrideGuid);
+}
+
+void FPakAnalyzer::LoadKeyChain()
+{
+	if (CachedAESKey.IsValid())
+	{
+		return;
+	}
+
+	// Config 
+	FString Filename;
+	if (GConfig->GetString(TEXT("UnrealPakViewer"), TEXT("CryptoKeys"), Filename, GEngineIni))
+	{
+		if (!Filename.IsEmpty())
+		{
+			LoadKeyChainFromFile(Filename, CachedKeyChain);
+
+			CachedAESKey = CachedKeyChain.MasterEncryptionKey->Key;
+		}
+	}
+
+	// Select
+	if (!CachedAESKey.IsValid())
+	{
+		Filename = FPakAnalyzerDelegates::OnGetKeyChainFilename.IsBound() ? FPakAnalyzerDelegates::OnGetKeyChainFilename.Execute() : TEXT("");
+		if (!Filename.IsEmpty())
+		{
+			LoadKeyChainFromFile(Filename, CachedKeyChain);
+
+			CachedAESKey = CachedKeyChain.MasterEncryptionKey->Key;
+		}
+	}
+
+	// Record
+	GConfig->SetString(TEXT("UnrealPakViewer"), TEXT("CryptoKeys"), CachedAESKey.IsValid() ? *Filename : TEXT(""), GEngineIni);
 }

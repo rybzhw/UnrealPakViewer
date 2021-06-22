@@ -21,6 +21,10 @@ public:
 	 */
 	static inline IPakAnalyzerModule& Get()
 	{
+		if (IsAvailable())
+		{
+			return (IPakAnalyzerModule&)*FModuleManager::Get().GetModule("PakAnalyzer");
+		}
 		return FModuleManager::LoadModuleChecked<IPakAnalyzerModule>("PakAnalyzer");
 	}
 

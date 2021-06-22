@@ -9,6 +9,7 @@
 DEFINE_LOG_CATEGORY(LogPakAnalyzer);
 
 FPakAnalyzerDelegates::FOnGetAESKey FPakAnalyzerDelegates::OnGetAESKey;
+FPakAnalyzerDelegates::FOnGetKeyChainFilename FPakAnalyzerDelegates::OnGetKeyChainFilename;
 FPakAnalyzerDelegates::FOnLoadPakFailed FPakAnalyzerDelegates::OnLoadPakFailed;
 FPakAnalyzerDelegates::FOnUpdateExtractProgress FPakAnalyzerDelegates::OnUpdateExtractProgress;
 FPakAnalyzerDelegates::FOnExtractStart FPakAnalyzerDelegates::OnExtractStart;

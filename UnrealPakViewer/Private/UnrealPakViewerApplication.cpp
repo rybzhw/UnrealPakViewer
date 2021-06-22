@@ -30,7 +30,11 @@ void FUnrealPakViewerApplication::Exec()
 	double LastTime = FPlatformTime::Seconds();
 	const float IdealFrameTime = 1.0f / IDEAL_FRAMERATE;
 
+#if ENGINE_MINOR_VERSION > 23
 	while (!IsEngineExitRequested())
+#else
+	while (!GIsRequestingExit)
+#endif
 	{
 		FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
 

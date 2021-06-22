@@ -70,6 +70,9 @@ protected:
 
 	void ResetProgress();
 
+	void LoadKeyChain();
+	void LoadKeyChainFromFile(const FString& InFilename, FKeyChain& OutCryptoSettings);
+
 protected:
 	FCriticalSection CriticalSection;
 
@@ -84,6 +87,8 @@ protected:
 	TMap<FGuid, FExtractProgress> ExtractWorkerProgresses;
 
 	FAES::FAESKey CachedAESKey;
+
+	FKeyChain CachedKeyChain;
 
 	bool bHasPakLoaded;
 

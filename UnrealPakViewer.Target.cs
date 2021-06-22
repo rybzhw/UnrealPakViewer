@@ -12,7 +12,7 @@ public class UnrealPakViewerTarget : TargetRules
         LinkType = TargetLinkType.Monolithic;
         LaunchModuleName = "UnrealPakViewer";
         SolutionDirectory = "MyPrograms";
-        DefaultBuildSettings = BuildSettingsVersion.V2;
+        // DefaultBuildSettings = BuildSettingsVersion.V2;
 
         ExtraModuleNames.Add("EditorStyle");
 

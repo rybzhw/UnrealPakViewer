@@ -54,6 +54,7 @@ public:
 		return 0;
 	}
 
+#if ENGINE_MINOR_VERSION > 23
 	virtual uint32 GetVersion() override
 	{
 		return 0;
@@ -63,5 +64,6 @@ public:
 	{
 		return TEXT("");
 	}
+#endif
 	// End ICompressionFormat Interfaces
 };
