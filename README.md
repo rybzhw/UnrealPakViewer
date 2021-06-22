@@ -2,6 +2,10 @@
 
 ![UnrealPakViewer.png](UnrealPakViewer.png)
 
+## 修改说明
+原项目地址：https://github.com/jashking/UnrealPakViewer
+针对特定项目做兼容，并不具有普适性。
+
 ## 编译 ##
 
 将代码克隆到 *Engine\Source\Programs* 目录下，重新生成解决方案编译即可
