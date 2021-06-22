@@ -3,8 +3,8 @@
 ![UnrealPakViewer.png](UnrealPakViewer.png)
 
 ## 修改说明
-原项目地址：https://github.com/jashking/UnrealPakViewer
-针对特定项目做兼容，并不具有普适性。
+* 原项目地址：https://github.com/jashking/UnrealPakViewer
+* 此分支是为了针对特定项目做兼容，并不具有普适性。
 
 ## 编译 ##
 
